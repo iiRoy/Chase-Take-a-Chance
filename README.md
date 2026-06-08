@@ -813,15 +813,16 @@ Created by:
 
 ## License
 
-No license has been specified for this project.
+This project is licensed under:
 
-If the project will be published publicly, consider adding a license such as:
+```text
+MIT License
+```
 
-- MIT License for code.
-- Separate asset usage notes for music, videos, textures, and models.
+This means the project has been dedicated to the public domain as much as legally possible.
 
 > [!IMPORTANT]
-> If the game includes third-party assets, music, models, textures, or videos, verify their licenses before redistributing the project.
+> Even with MIT License, verify whether any external assets, libraries, or dependencies used by the project have their own license requirements. This license only apply for the code.
 
 ---
 
