@@ -813,16 +813,14 @@ Created by:
 
 ## License
 
-This project is licensed under:
+This project is publicly available for educational and portfolio review purposes only.
 
-```text
-MIT License
-```
+The source code, visual assets, audio, videos, logos, screenshots, documentation, and other project materials may not be used, copied, modified, redistributed, sublicensed, or used commercially without explicit permission from the project authors.
 
-This means the project has been dedicated to the public domain as much as legally possible.
+All rights reserved unless otherwise stated.
 
 > [!IMPORTANT]
-> Even with MIT License, verify whether any external assets, libraries, or dependencies used by the project have their own license requirements. This license only apply for the code.
+> Some third-party assets, music, libraries, or references may be subject to their own licenses. Those materials remain owned by their original creators and are not covered by this project license.
 
 ---
 
