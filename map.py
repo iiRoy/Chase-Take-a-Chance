@@ -54,12 +54,15 @@ import sys
 from objloader import *
 from Enemy import Enemy
 from Collectable import Coin
-import pygetwindow as gw  # Importar pygetwindow
+try:
+    import pygetwindow as gw
+except NotImplementedError:
+    gw = None
 
 sys.path.append('..')
 
-screen_width = 1800
-screen_height = 800
+screen_width = 3000
+screen_height = 1440
 FOVY = 60.0
 ZNEAR = 1.0
 ZFAR = 900.0
@@ -88,6 +91,9 @@ player_z = 0
 speed = 10
 giroSpeed = 10
 
+game_over_time = None
+win_time = None
+
 collectedItems = 3
 
 objetos = []
@@ -111,8 +117,24 @@ ligeres = 4
 
 GLUT_BITMAP_TIMES_ROMAN_24 = ctypes.c_int(7)
 
+def create_window(fullscreen=False):
+    global screen, screen_width, screen_height
+
+    flags = DOUBLEBUF | OPENGL
+
+    if fullscreen:
+        flags |= FULLSCREEN
+        screen = pygame.display.set_mode((0, 0), flags)
+    else:
+        screen = pygame.display.set_mode((screen_width, screen_height), flags)
+
+    screen_width, screen_height = screen.get_size()
+
+    glViewport(0, 0, screen_width, screen_height)
+
 pygame.init()
-screen = pygame.display.set_mode((screen_width, screen_height), DOUBLEBUF | OPENGL)
+create_window(fullscreen=True)
+screen_width, screen_height = screen.get_size()
 edo_game = 0
 
 def load_texture(filename):
@@ -133,11 +155,12 @@ def load_texture(filename):
 def minimize_all_windows():
     pygame.display.init()
     game_window_title = pygame.display.get_caption()[0]
-    windows = gw.getAllTitles()
-    for win in windows:
-        window = gw.getWindowsWithTitle(win)
-        if window and window[0].title != game_window_title:
-            window[0].minimize()
+    if gw is not None:
+        windows = gw.getAllTitles()
+        for win in windows:
+            window = gw.getWindowsWithTitle(win)
+            if window and window[0].title != game_window_title:
+                window[0].minimize()
 
 def load_map(filename):
     map_data = []
@@ -153,7 +176,7 @@ def numero_aleatorio():
     return random.randint(1, 3)
 
 def segundo_aleatorio():
-    segundos = [3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+    segundos = [1, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     return random.choice(segundos)
 """"
 def Axis():
@@ -177,32 +200,45 @@ def Axis():
     glLineWidth(1.0)
 """
 
-screamer_played = False  # Variable para llevar el registro si el screamer ya ha sido reproducido
+ending_played = False  # Variable para llevar el registro si el screamer ya ha sido reproducido
 
 def set_music_volume(volume):
     pygame.mixer.music.set_volume(volume)
 
 def Init():
-    global wall_texture, spider_texture
+    global wall_texture, spider_texture, objetos
+
+    objetos.clear()
+
     minimize_all_windows()
+
     pygame.mixer.init()
     pygame.mixer.music.load('background_music.mp3')
     set_music_volume(0.1)
-    pygame.mixer.music.play(-1)  # Reproduce la música en bucle
+    pygame.mixer.music.play(-1)
+
     pygame.display.set_caption("Chase: Take A Chance")
+
+    glViewport(0, 0, screen_width, screen_height)
+
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(FOVY, screen_width / screen_height, ZNEAR, ZFAR)
+
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
     gluLookAt(EYE_X, EYE_Y, EYE_Z, CENTER_X, CENTER_Y, CENTER_Z, UP_X, UP_Y, UP_Z)
+
     glClearColor(0, 0, 0, 0)
     glEnable(GL_DEPTH_TEST)
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
     objetos.append(OBJ("HSpider.obj", swapyz=True))
     objetos[0].generate()
+
     for i in range(0, 3):
         objetos.append(OBJ("Coin.obj", swapyz=True))
+
     wall_texture = load_texture("wall_texture.jpg")
     spider_texture = load_texture("spider_texture.jpg")  # Cargar la textura de la araña
 
@@ -326,18 +362,22 @@ def draw_floor():
     glVertex3d(DimBoard, 0, DimBoard)
     glVertex3d(DimBoard, 0, -DimBoard)
     glEnd()
+
 def display():
-    global edo_game, screamer_played, videoEnding
+    global edo_game, ending_played, videoEnding
+    global collectedItems, game_over_time, win_time
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
     if edo_game == 0:
-        global collectedItems
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        #Axis()
         draw_floor()
         draw_walls(wall_vertices)
+
         print(f"JUGADOR en x es: {player_x}")
         print(f"JUGADOR en z es: {player_z}")
         print(f"ENEMIGO en x es: {int(enemy_instance.Position[0])}")
         print(f"ENEMIGO en z es: {int(enemy_instance.Position[1])}")
+
         enemy_instance.update(new_end=(int(player_x), int(player_z)))
         displayobj()
 
@@ -352,42 +392,66 @@ def display():
         if is_collision_with_enemy(player_x, player_z):
             edo_game = 1
             handle_collision_with_enemy()
+
         if is_collision_with_coins(player_x, player_z):
             collectedItems -= 1
             if collectedItems == 0:
                 edo_game = 2
-                play_ending_video()
-    elif edo_game == 1 and not screamer_played:
-        pygame.display.quit()
-        pygame.time.wait(segundo_aleatorio())
-        num = numero_aleatorio()
-        if num == 2:
-            videoEnding = 'SCREAMER.mp4'
-        else:
-            videoEnding = 'SCREAMER2.mp4'
-        play_ending_video()
-        screamer_played = True
-        pygame.display.init()
-        screen = pygame.display.set_mode((screen_width, screen_height), DOUBLEBUF | OPENGL)
-        Init()  # Reinitialize the OpenGL context
-        pygame.mixer.init()
-        pygame.mixer.music.load('background_music.mp3')
-        set_music_volume(0.1)
-        pygame.mixer.music.play(-1)  # Reproduce la música en bucle
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+    elif edo_game == 1:
+        if not ending_played:
+            pygame.display.quit()
+            pygame.time.wait(segundo_aleatorio())
+
+            num = numero_aleatorio()
+            if num == 2:
+                videoEnding = 'SCREAMER.mp4'
+            else:
+                videoEnding = 'SCREAMER2.mp4'
+
+            play_ending_video()
+            ending_played = True
+
+            pygame.display.init()
+            create_window(fullscreen=True)
+            Init()
+
+            pygame.mixer.init()
+            pygame.mixer.music.load('background_music.mp3')
+            set_music_volume(0.1)
+            pygame.mixer.music.play(-1)
+
+            game_over_time = pygame.time.get_ticks()
+
         show_game_over_message()
-    elif edo_game == 2 and not screamer_played:
-        videoEnding = 'BOOGIE.mp4'
-        play_ending_video()
-        screamer_played = True
-        pygame.display.init()
-        screen = pygame.display.set_mode((screen_width, screen_height), DOUBLEBUF | OPENGL)
-        Init()  # Reinitialize the OpenGL context
-        pygame.mixer.init()
-        pygame.mixer.music.load('background_music.mp3')
-        pygame.mixer.music.play(-1)  # Reproduce la música en bucle
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        if game_over_time is not None:
+            if pygame.time.get_ticks() - game_over_time >= 30000:
+                pygame.quit()
+                sys.exit()
+
+    elif edo_game == 2:
+        if not ending_played:
+            videoEnding = 'BOOGIE.mp4'
+            play_ending_video()
+            ending_played = True
+
+            pygame.display.init()
+            create_window(fullscreen=True)
+            Init()
+
+            pygame.mixer.init()
+            pygame.mixer.music.load('background_music.mp3')
+            pygame.mixer.music.play(-1)
+
+            win_time = pygame.time.get_ticks()
+
         show_you_win_message()
+
+        if win_time is not None:
+            if pygame.time.get_ticks() - win_time >= 30000:
+                pygame.quit()
+                sys.exit()
 
 def handle_collision_with_enemy():
     # Detener la música de fondo
@@ -453,7 +517,6 @@ def show_you_win_message():
     glPopMatrix()  # Restaurar la matriz de proyección
     glMatrixMode(GL_MODELVIEW)
 
-
 def show_game_over_message():
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -472,7 +535,7 @@ def show_game_over_message():
     glMatrixMode(GL_MODELVIEW)
 
 def render_text(text, x, y, color):
-    font = pygame.font.Font(None, 36)  # Cargar una fuente (puedes ajustar el tamaño y el tipo de fuente)
+    font = pygame.font.Font(None, 70)  # Cargar una fuente (puedes ajustar el tamaño y el tipo de fuente)
     text_surface = font.render(text, True, color)  # Renderizar el texto en una superficie de Pygame
     text_data = pygame.image.tostring(text_surface, "RGBA", True)  # Convertir la superficie en datos de píxeles
 
@@ -571,34 +634,36 @@ def play_ending_video():
 done = False
 Init()
 while not done:
-    keys = pygame.key.get_pressed()
-    new_eye_x, new_eye_z = EYE_X, EYE_Z
-    if keys[pygame.K_UP]:
-        new_eye_x += dir[0]
-        new_eye_z += dir[2]
-    if keys[pygame.K_DOWN]:
-        new_eye_x -= dir[0]
-        new_eye_z -= dir[2]
-    if keys[pygame.K_RIGHT]:
-        theta += giroSpeed
-        lookAt()
-    if keys[pygame.K_LEFT]:
-        theta -= giroSpeed
-        lookAt()
-
-    if not is_collision(new_eye_x, new_eye_z):
-        EYE_X, EYE_Z = new_eye_x, new_eye_z
-        CENTER_X = EYE_X + dir[0]
-        CENTER_Z = EYE_Z + dir[2]
-        player_x = int(EYE_X)
-        player_z = int(EYE_Z)
-        glLoadIdentity()
-        gluLookAt(EYE_X, EYE_Y, EYE_Z, CENTER_X, CENTER_Y, CENTER_Z, UP_X, UP_Y, UP_Z)
-
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 done = True
+
+    if edo_game == 0:
+        keys = pygame.key.get_pressed()
+        new_eye_x, new_eye_z = EYE_X, EYE_Z
+
+        if keys[pygame.K_UP]:
+            new_eye_x += dir[0]
+            new_eye_z += dir[2]
+        if keys[pygame.K_DOWN]:
+            new_eye_x -= dir[0]
+            new_eye_z -= dir[2]
+        if keys[pygame.K_RIGHT]:
+            theta += giroSpeed
+            lookAt()
+        if keys[pygame.K_LEFT]:
+            theta -= giroSpeed
+            lookAt()
+
+        if not is_collision(new_eye_x, new_eye_z):
+            EYE_X, EYE_Z = new_eye_x, new_eye_z
+            CENTER_X = EYE_X + dir[0]
+            CENTER_Z = EYE_Z + dir[2]
+            player_x = int(EYE_X)
+            player_z = int(EYE_Z)
+            glLoadIdentity()
+            gluLookAt(EYE_X, EYE_Y, EYE_Z, CENTER_X, CENTER_Y, CENTER_Z, UP_X, UP_Y, UP_Z)
 
     display()
     pygame.display.flip()
